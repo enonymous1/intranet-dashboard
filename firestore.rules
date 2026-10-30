@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Layout documents are written by FirebaseService under
+    // artifacts/<appId>/users/<uid>/dashboard/layout, where <uid> is the
+    // Firebase Auth UID (anonymous auth by default). A user may only
+    // read or write their own document. Without rules like these, the
+    // published Firebase config alone would let anyone read or overwrite
+    // any user's layout — which is why the original repo shipping no
+    // rules file at all was a gap, not a detail.
+    match /artifacts/{appId}/users/{userId}/dashboard/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

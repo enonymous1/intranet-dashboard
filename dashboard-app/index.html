@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A customizable, user-personalized dashboard. Drag widgets, save layouts, switch themes — no account required for the local demo.">
+    <title>Intranet Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack.min.css" integrity="sha384-3466xzONp5jWI9wRY4i5C4LQqPF7wQiNl2TPqqWNEKMxqleN1p3y+uCjs5rObTFv" crossorigin="anonymous">
+    <link rel="stylesheet" href="css/custom.css">
+</head>
+<body>
+<div class="layout">
+    <header class="topbar">
+        <span class="brand">Intranet Dashboard</span>
+        <div class="topbar-actions">
+            <button type="button" class="btn" id="darkModeToggle" title="Switch theme" aria-label="Switch theme">
+                <span id="themeIcon" aria-hidden="true">🌙</span>
+            </button>
+            <span id="userName">Guest</span>
+            <button type="button" class="btn" id="loginBtn">Login with Microsoft</button>
+            <button type="button" class="btn" id="logoutBtn" hidden>Logout</button>
+        </div>
+    </header>
+
+    <aside class="sidebar">
+        <nav aria-label="Widgets">
+            <h2>Widgets</h2>
+            <ul class="widget-menu">
+                <li><button type="button" class="btn add-widget-btn" data-widget-type="welcome">Welcome</button></li>
+                <li><button type="button" class="btn add-widget-btn" data-widget-type="info">Info Box</button></li>
+                <li><button type="button" class="btn add-widget-btn" data-widget-type="chart">Bar Chart</button></li>
+                <li><button type="button" class="btn add-widget-btn" data-widget-type="lineChart">Line Chart</button></li>
+                <li><button type="button" class="btn add-widget-btn" data-widget-type="pieChart">Pie Chart</button></li>
+            </ul>
+            <h2>Layout</h2>
+            <ul class="widget-menu">
+                <li><button type="button" class="btn btn-primary" id="saveLayoutBtn">Save Layout</button></li>
+                <li><button type="button" class="btn" id="resetLayoutBtn">Reset to defaults</button></li>
+            </ul>
+            <p class="sidebar-note">
+                No keys needed: layouts save in this browser.
+                Shortcuts: Ctrl/Cmd+S saves, Ctrl/Cmd+D toggles theme.
+            </p>
+        </nav>
+    </aside>
+
+    <main class="content-wrapper">
+        <section class="content">
+            <div class="grid-stack"></div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <span>Intranet Dashboard — a customizable dashboard demo. Layouts save locally unless Firebase is configured (see README).</span>
+    </footer>
+</div>
+
+<noscript>
+    <p>This dashboard requires JavaScript.</p>
+</noscript>
+
+<!-- GridStack (classic script; the dashboard falls back to a plain layout if it fails to load) -->
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack-all.js" integrity="sha384-6IelLg5vJ9FDli+2FiM5mdHxGkb5pvYCGXlIN9Tqlv6ufE1DNgZkrqeIz/me4Phs" crossorigin="anonymous"></script>
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+
+<!-- Optional configuration goes here, before app.js (see README):
+<script>
+    window.INTRANET_FIREBASE_CONFIG = { apiKey: '…', authDomain: '…', projectId: '…', appId: '…' };
+    window.INTRANET_MSAL_CONFIG = { clientId: '…', authority: 'https://login.microsoftonline.com/…' };
+</script>
+-->
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>
