@@ -33,6 +33,7 @@ class DashboardApp {
             await this.initializeModules();
             this.setupModuleCommunication();
             this.setupUIEventHandlers();
+            this._applyStoredMode();
             this.isInitialized = true;
             this.eventEmitter.emit('appReady');
         } catch (error) {
@@ -62,9 +63,13 @@ class DashboardApp {
         this.modules.layoutStore = layoutStore;
     }
 
-    /** Identity for the local store: MSAL account, else a stable guest id. */
+    /** Identity for the local store: demo, MSAL account, else a stable guest id. */
     _localUserKey() {
-        const user = this.modules.authModule ? this.modules.authModule.getCurrentUser() : null;
+        const auth = this.modules.authModule;
+        if (auth && typeof auth.isDemo === 'function' && auth.isDemo()) {
+            return 'demo';
+        }
+        const user = auth ? auth.getCurrentUser() : null;
         if (user) {
             return `msal-${user.homeAccountId || user.username || 'user'}`;
         }
@@ -124,9 +129,11 @@ class DashboardApp {
         });
         this.eventEmitter.on('userLogin', (account) => {
             console.log('User logged in:', account.name || account.username);
+            this._updateModeUI();
         });
         this.eventEmitter.on('userLogout', () => {
             console.log('User logged out');
+            this._updateModeUI();
         });
     }
 
@@ -145,6 +152,48 @@ class DashboardApp {
         onClick('darkModeToggle', () => this.modules.themeModule.toggleTheme());
         onClick('saveLayoutBtn', () => this.modules.dashboardModule.saveLayout());
         onClick('resetLayoutBtn', () => this.modules.dashboardModule.loadDefaultDashboard());
+        onClick('demoBtn', () => {
+            if (this.modules.authModule.isDemo()) {
+                this._setMode('guest');
+                this.modules.authModule.exitDemo();
+            } else {
+                this._setMode('demo');
+                this.modules.authModule.signInAsDemo();
+            }
+            this._updateModeUI();
+        });
+
+        // First-visit choice dialog: demo, real Microsoft sign-in, or guest.
+        onClick('demoChoiceBtn', () => {
+            this._setMode('demo');
+            this._closeChoiceDialog();
+            this.modules.authModule.signInAsDemo();
+            this._updateModeUI();
+        });
+        onClick('msalChoiceBtn', () => {
+            if (!this.modules.authModule.isConfigured) {
+                this.showGlobalNotification('Microsoft sign-in is not configured in this demo.', 'warning');
+                return;
+            }
+            this._setMode('real');
+            this._closeChoiceDialog();
+            this.modules.authModule.login();
+        });
+        onClick('guestChoiceBtn', () => {
+            this._setMode('guest');
+            this._closeChoiceDialog();
+            this._updateModeUI();
+        });
+        const dialog = document.getElementById('signinChoiceDialog');
+        if (dialog) {
+            // Dismissing with Esc counts as "continue as guest", so the
+            // dialog does not reappear on every visit after a dismissal.
+            dialog.addEventListener('close', () => {
+                if (!this._getMode()) {
+                    this._setMode('guest');
+                }
+            });
+        }
 
         // Hide sign-in entirely when MSAL is not configured; guest mode
         // is the whole point of the no-keys demo.
@@ -194,6 +243,95 @@ class DashboardApp {
                 this.eventEmitter.emit('tabVisible');
             }
         });
+    }
+
+    _getMode() {
+        try {
+            return localStorage.getItem('intranet-dashboard:mode');
+        } catch {
+            return null;
+        }
+    }
+
+    _setMode(mode) {
+        try {
+            localStorage.setItem('intranet-dashboard:mode', mode);
+        } catch {
+            // Private mode etc.: choice simply is not remembered.
+        }
+    }
+
+    _updateModeUI() {
+        const auth = this.modules.authModule;
+        if (!auth) {
+            return;
+        }
+        const isDemo = typeof auth.isDemo === 'function' && auth.isDemo();
+        const demoBtn = document.getElementById('demoBtn');
+        if (demoBtn) {
+            demoBtn.textContent = isDemo ? 'Exit demo' : 'Try demo';
+        }
+        const badge = document.getElementById('modeBadge');
+        if (badge) {
+            badge.hidden = !isDemo;
+            badge.textContent = 'Demo mode';
+        }
+    }
+
+    _closeChoiceDialog() {
+        const dialog = document.getElementById('signinChoiceDialog');
+        if (dialog && typeof dialog.close === 'function' && dialog.open) {
+            dialog.close();
+        }
+    }
+
+    /**
+     * First-visit choice, applied once at startup. A restored real MSAL
+     * session or a remembered choice skips the dialog; a remembered demo
+     * choice re-enters demo mode (and therefore the sample layout, or a
+     * previously saved demo layout). Nothing here ever attempts a real
+     * sign-in on its own — the real option only runs when the visitor
+     * clicks it, and it is disabled entirely when MSAL is not configured.
+     */
+    _applyStoredMode() {
+        const auth = this.modules.authModule;
+        if (auth.isAuthenticated() && !auth.isDemo()) {
+            this._updateModeUI();
+            return;
+        }
+        const stored = this._getMode();
+        if (stored === 'demo') {
+            auth.signInAsDemo();
+            this._updateModeUI();
+            return;
+        }
+        if (stored === 'real' || stored === 'guest') {
+            this._updateModeUI();
+            return;
+        }
+        const dialog = document.getElementById('signinChoiceDialog');
+        if (!dialog) {
+            return;
+        }
+        const msalBtn = document.getElementById('msalChoiceBtn');
+        if (msalBtn) {
+            msalBtn.disabled = !auth.isConfigured;
+        }
+        const msalNote = document.getElementById('msalChoiceNote');
+        if (msalNote) {
+            msalNote.textContent = auth.isConfigured
+                ? ''
+                : 'Microsoft sign-in is not configured in this demo — try the demo instead.';
+        }
+        try {
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+        } catch {
+            // showModal throws if the dialog is already open; ignore.
+        }
     }
 
     showGlobalNotification(message, type = 'info') {

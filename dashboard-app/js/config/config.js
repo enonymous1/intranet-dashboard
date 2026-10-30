@@ -132,4 +132,84 @@ export class Config {
             { type: 'chart', w: 12, h: 4, x: 0, y: 2, options: {} },
         ];
     }
+
+    /**
+     * The demo account. Deliberately fictional and local-only: it is not
+     * a Microsoft account, it never touches MSAL or Firebase, and it is
+     * never sent anywhere. It exists so a visitor can try the dashboard
+     * without signing in for real.
+     */
+    static getDemoUser() {
+        return {
+            name: 'Demo User',
+            username: 'demo@example.com',
+            homeAccountId: 'demo-user',
+            isDemo: true,
+        };
+    }
+
+    /**
+     * Sample dashboard for demo mode: every widget carries its own
+     * options, so the charts render sample data instead of the generic
+     * defaults, and the layout round-trips through save/load unchanged.
+     * All figures are fictional.
+     */
+    static getDemoLayout() {
+        return [
+            {
+                type: 'welcome', w: 6, h: 2, x: 0, y: 0,
+                options: {
+                    title: 'Welcome, Demo User!',
+                    message: 'This is a sample dashboard. Drag widgets, save the layout, then reset it — nothing leaves this browser.',
+                },
+            },
+            {
+                type: 'info', w: 6, h: 2, x: 6, y: 0,
+                options: {
+                    title: 'Team updates (sample)',
+                    content: 'Fictional sample: 3 new requests this week, 2 in review, 1 waiting on approval.',
+                },
+            },
+            {
+                type: 'chart', w: 6, h: 4, x: 0, y: 2,
+                options: {
+                    title: 'Tasks completed (sample)',
+                    chartConfig: {
+                        type: 'bar',
+                        data: {
+                            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                            datasets: [{ label: 'Tasks', data: [4, 7, 5, 8, 6] }],
+                        },
+                    },
+                },
+            },
+            {
+                type: 'lineChart', w: 6, h: 4, x: 6, y: 2,
+                options: {
+                    title: 'Visitors (sample)',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{ label: 'Visitors', data: [120, 150, 130, 180, 170, 210] }],
+                    },
+                },
+            },
+            {
+                type: 'pieChart', w: 6, h: 4, x: 0, y: 6,
+                options: {
+                    title: 'Project share (sample)',
+                    data: {
+                        labels: ['Alpha', 'Beta', 'Gamma'],
+                        datasets: [{ data: [45, 30, 25] }],
+                    },
+                },
+            },
+            {
+                type: 'info', w: 6, h: 4, x: 6, y: 6,
+                options: {
+                    title: 'About this demo',
+                    content: 'You are signed in as a local demo account, not a Microsoft account. Use "Exit demo" in the header to leave demo mode, or "Reset to defaults" in the sidebar to restore this sample layout.',
+                },
+            },
+        ];
+    }
 }

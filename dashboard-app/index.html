@@ -16,6 +16,8 @@
             <button type="button" class="btn" id="darkModeToggle" title="Switch theme" aria-label="Switch theme">
                 <span id="themeIcon" aria-hidden="true">🌙</span>
             </button>
+            <button type="button" class="btn" id="demoBtn">Try demo</button>
+            <span id="modeBadge" class="badge" hidden>Demo mode</span>
             <span id="userName">Guest</span>
             <button type="button" class="btn" id="loginBtn">Login with Microsoft</button>
             <button type="button" class="btn" id="logoutBtn" hidden>Logout</button>
@@ -54,6 +56,20 @@
         <span>Intranet Dashboard — a customizable dashboard demo. Layouts save locally unless Firebase is configured (see README).</span>
     </footer>
 </div>
+
+<dialog id="signinChoiceDialog" aria-labelledby="choiceTitle">
+    <h2 id="choiceTitle">How would you like to sign in?</h2>
+    <p>Try the dashboard with sample data, sign in with Microsoft for real, or continue as a guest.</p>
+    <div class="choice-buttons">
+        <button type="button" class="btn btn-primary" id="demoChoiceBtn">Try the demo</button>
+        <p class="choice-note">Sample account, sample widgets. Everything stays in this browser — no Microsoft sign-in, nothing sent anywhere.</p>
+        <button type="button" class="btn" id="msalChoiceBtn">Sign in with Microsoft</button>
+        <p class="choice-note" id="msalChoiceNote"></p>
+        <button type="button" class="btn" id="guestChoiceBtn">Continue as guest</button>
+        <p class="choice-note">Generic defaults, layouts save in this browser.</p>
+    </div>
+    <p class="choice-note">You can switch any time from the header: “Try demo” / “Exit demo”, or Login with Microsoft when configured.</p>
+</dialog>
 
 <noscript>
     <p>This dashboard requires JavaScript.</p>

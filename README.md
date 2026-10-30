@@ -13,6 +13,7 @@ A customizable, user-personalized dashboard web app. Add widgets, drag them arou
 - **Saving that works with no account.** Layouts save to localStorage by default, keyed by Microsoft account when signed in, otherwise by a stable per-browser guest id. Signing in changes the key, so each account gets its own layout.
 - **Dark/light theme** that persists in localStorage, follows the OS by default, and syncs across tabs. Theme changes recreate charts only — the original reloaded the whole dashboard, discarding unsaved drags.
 - **Optional Microsoft sign-in (MSAL) and optional Firebase/Firestore persistence**, both injected at runtime and both off by default. With neither configured, sign-in is hidden and the app is a pure local demo.
+- **Demo mode, chosen by the visitor.** On first visit a dialog offers three paths — try the demo, sign in with Microsoft, or continue as a guest — and never attempts a real sign-in on its own.
 
 ## Run it
 
@@ -23,6 +24,16 @@ python3 -m http.server 8000
 ```
 
 Or from the repo root: `npm start`. Opening `index.html` directly via `file://` will break ES-module loading in most browsers; use an HTTP server.
+
+## Demo mode
+
+On first visit, before anything else happens, a dialog asks how the visitor wants to sign in:
+
+- **Try the demo** — signs in as a local, fictional demo account ("Demo User", `demo@example.com`) and loads a sample dashboard: welcome card, team updates, tasks-per-day bar chart, visitors line chart, and project-share pie chart, all with fictional figures. Nothing is a Microsoft account, no redirect happens, no token is issued, and nothing leaves the browser. Demo layouts save under the `demo` identity in localStorage (`intranet-dashboard:layout:demo`), so a saved demo layout is still there on the next demo visit.
+- **Sign in with Microsoft** — only attempted when the visitor clicks it, and disabled entirely in the dialog when MSAL is not configured (with a note saying so), so a visitor is never sent into a broken login flow.
+- **Continue as guest** — generic defaults, layouts save under a per-browser guest id.
+
+The choice is remembered in localStorage (`intranet-dashboard:mode`), so the dialog appears once. Switching any time: the header has a **Try demo / Exit demo** button, and Login with Microsoft when configured. In demo mode a "Demo mode" badge shows in the header, the name reads "Demo User (demo)", and **Reset to defaults** in the sidebar restores the sample layout instead of the generic defaults.
 
 No build step, no dependencies to install. Tests run with Node 20+:
 
@@ -100,7 +111,7 @@ Push to `main`, then repo Settings → Pages → Source **GitHub Actions**. The 
 ## Not yet verified live
 
 - First CI run after push, and the Pages deploy itself.
-- Rendering in a real browser against the live CDNs (GridStack drag, Chart.js drawing), and a real MSAL sign-in against a live Azure app registration — these need a browser and a tenant this sandbox does not have. What *is* verified here: the full `node:test` suite, `node --check` on every module, and a local HTTP smoke test serving the app (see the delivery notes).
+- Rendering in a real browser against the live CDNs (GridStack drag, Chart.js drawing, the sign-in choice dialog and demo mode), and a real MSAL sign-in against a live Azure app registration — these need a browser and a tenant this sandbox does not have. What *is* verified here: the full `node:test` suite (including demo sign-in and the sample layout), `node --check` on every module, and a local HTTP smoke test serving the app (see the delivery notes).
 
 ## License
 

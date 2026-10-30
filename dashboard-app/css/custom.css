@@ -141,6 +141,32 @@ body {
 
 .btn-sm { padding: 0.15rem 0.45rem; font-size: 0.85rem; }
 
+.badge {
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    background-color: var(--primary);
+    color: #ffffff;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* First-visit sign-in choice dialog */
+dialog {
+    max-width: 480px;
+    width: calc(100% - 2rem);
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--widget-border);
+    border-radius: 0.5rem;
+    background-color: var(--card-bg);
+    color: var(--card-color);
+}
+
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+
+.choice-buttons { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.choice-note { font-size: 0.85rem; opacity: 0.8; line-height: 1.5; margin: 0 0 0.75rem 0; }
+
 /* GridStack items */
 .grid-stack-item-content {
     background-color: var(--widget-bg);

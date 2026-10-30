@@ -20,6 +20,7 @@ export class AuthenticationModule {
         this.currentUser = null;
         this.isInitialized = false;
         this.isConfigured = false;
+        this._isDemo = false;
         this._config = Config.getMsalConfig();
     }
 
@@ -107,21 +108,55 @@ export class AuthenticationModule {
         }
     }
 
+    /**
+     * Sign in as the local demo account (Config.getDemoUser()). This is
+     * not a Microsoft sign-in: no redirect, no token, no network call.
+     * The dashboard reloads for the demo identity, so it loads the
+     * sample layout (or a previously saved demo layout) instead of the
+     * guest defaults. Safe to call with no document (tests, Node).
+     */
+    signInAsDemo() {
+        const demo = Config.getDemoUser();
+        this.updateUIAfterLogin(demo);
+        return demo;
+    }
+
+    /** Leave demo mode and return to guest. No-op when not in demo. */
+    exitDemo() {
+        if (!this._isDemo) {
+            return;
+        }
+        this.updateUIForGuest();
+    }
+
+    isDemo() {
+        return this._isDemo === true;
+    }
+
     updateUIAfterLogin(account) {
         this.currentUser = account;
+        this._isDemo = account.isDemo === true;
         if (typeof document !== 'undefined') {
             const nameEl = document.getElementById('userName');
-            if (nameEl) nameEl.textContent = account.name || account.username || 'User';
+            if (nameEl) {
+                const displayName = account.name || account.username || 'User';
+                nameEl.textContent = this._isDemo ? `${displayName} (demo)` : displayName;
+            }
             const loginBtn = document.getElementById('loginBtn');
             const logoutBtn = document.getElementById('logoutBtn');
-            if (loginBtn) loginBtn.hidden = true;
-            if (logoutBtn) logoutBtn.hidden = false;
+            // In demo mode the real login stays available (when
+            // configured) so a visitor can switch to a real sign-in;
+            // logout is meaningless for a local demo account, so the
+            // header's "Exit demo" button handles leaving demo instead.
+            if (loginBtn) loginBtn.hidden = this._isDemo ? !this.isConfigured : true;
+            if (logoutBtn) logoutBtn.hidden = this._isDemo ? true : false;
         }
         this.eventEmitter.emit('userLogin', account);
     }
 
     updateUIForGuest() {
         this.currentUser = null;
+        this._isDemo = false;
         if (typeof document !== 'undefined') {
             const nameEl = document.getElementById('userName');
             if (nameEl) nameEl.textContent = 'Guest';

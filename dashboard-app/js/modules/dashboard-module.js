@@ -215,9 +215,15 @@ export class DashboardModule {
             saved = [];
         }
         const parsed = serializeLayout(saved);
+        // No saved layout yet: demo mode gets the sample layout, guests
+        // get the generic defaults. A saved layout always wins over both.
+        const isDemo = this.authModule
+            && typeof this.authModule.isDemo === 'function'
+            && this.authModule.isDemo();
+        const fallback = isDemo ? Config.getDemoLayout() : Config.getDefaultWidgets();
         const toLoad = parsed.length > 0
             ? parsed
-            : Config.getDefaultWidgets().map((widget) => normalizeWidget(widget)).filter(Boolean);
+            : fallback.map((widget) => normalizeWidget(widget)).filter(Boolean);
         toLoad.forEach((widget, index) => {
             setTimeout(() => {
                 // A newer load/reset in the meantime wins; stale
@@ -234,7 +240,13 @@ export class DashboardModule {
             return;
         }
         const token = this._clearGrid();
-        Config.getDefaultWidgets().forEach((widget, index) => {
+        // Reset restores the mode-appropriate layout: the sample layout
+        // in demo mode, the generic defaults otherwise.
+        const isDemo = this.authModule
+            && typeof this.authModule.isDemo === 'function'
+            && this.authModule.isDemo();
+        const defaults = isDemo ? Config.getDemoLayout() : Config.getDefaultWidgets();
+        defaults.forEach((widget, index) => {
             setTimeout(() => {
                 if (token === this._loadToken) {
                     this.addWidget(normalizeWidget(widget));
