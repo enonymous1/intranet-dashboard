@@ -178,15 +178,31 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 
 .grid-stack-item { transition: transform 0.2s ease; }
 
-/* Fallback layout when GridStack failed to load */
+/* Fallback layout when GridStack failed to load.
+ * GridStack's own CSS puts items and their content at position:absolute
+ * with no left/top until GridStack positions them — so a plain
+ * display:flex on the container is not enough: the items would pile
+ * at the origin. These rules (higher specificity than GridStack's)
+ * put the items back in normal flow. Gutter comes from item padding,
+ * not container gap: two 50% items plus a gap would exceed 100% and
+ * wrap, while padding is inside the inline width (border-box). */
 .grid-stack.fallback-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
     align-items: flex-start;
 }
 
-.grid-stack.fallback-grid .grid-stack-item { flex: 0 0 auto; }
+.grid-stack.fallback-grid > .grid-stack-item {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 0.5rem;
+    box-sizing: border-box;
+}
+
+.grid-stack.fallback-grid > .grid-stack-item > .grid-stack-item-content {
+    position: relative;
+    width: 100%;
+}
 
 .card {
     background-color: var(--card-bg);
@@ -210,7 +226,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 .grid-stack-item canvas {
     width: 100% !important;
     height: auto;
-    max-height: 220px;
+    /* A 4-row GridStack item is 4 x 70px = 280px tall; the card header
+     * plus body padding take ~70px of that, so a taller canvas gets its
+     * x-axis labels clipped by the item's overflow:hidden. */
+    max-height: 190px;
     display: block;
 }
 

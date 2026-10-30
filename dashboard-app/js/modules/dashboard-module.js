@@ -12,10 +12,14 @@ import { sanitizeIconClass } from '../core/escape.js';
  *
  * GridStack is loaded as a classic script in index.html (the original's
  * ES-module import pointed at a path that does not exist in the package,
- * so the grid never initialized). If window.GridStack is missing at
- * startup — blocked CDN, offline — the dashboard falls back to a plain
- * flex layout instead of failing: widgets still render, add, remove
- * and save. Drag-and-drop is the only thing lost.
+ * so the grid never initialized). GridStack 10's init takes OPTIONS
+ * FIRST, selector second — init(config, '.grid-stack') — and passing
+ * them the other way round throws inside GridStack, which is what
+ * silently dropped the live site to the fallback layout in v1.1.0.
+ * If window.GridStack is missing at startup — blocked CDN, offline —
+ * or init throws, the dashboard falls back to a plain flex layout
+ * instead of failing: widgets still render, add, remove and save.
+ * Drag-and-drop is the only thing lost.
  */
 export class DashboardModule {
     constructor(eventEmitter, layoutStore, authModule) {
@@ -54,7 +58,10 @@ export class DashboardModule {
         if (typeof window !== 'undefined' && window.GridStack
             && typeof window.GridStack.init === 'function') {
             try {
-                this.grid = window.GridStack.init('.grid-stack', Config.getGridStackConfig());
+                this.grid = window.GridStack.init(Config.getGridStackConfig(), '.grid-stack');
+                if (!this.grid) {
+                    throw new Error('GridStack.init returned no grid');
+                }
                 this.useGridStack = true;
                 this.grid.on('change', () => {
                     this._syncGeometryFromGrid();
