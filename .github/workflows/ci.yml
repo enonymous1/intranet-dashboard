@@ -18,3 +18,16 @@ jobs:
         run: npm run check
       - name: Run tests
         run: npm test
+      - name: Verify CDN SRI hashes match the pinned versions
+        run: npm run sri:check
+      # Browser smoke test: the layout assertion node:test cannot make.
+      # Runs on Node 22 only (matrix would run it twice for no benefit).
+      - name: Set up Chrome
+        if: matrix.node-version == 22
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: Browser smoke test (GridStack layout + fallback layout)
+        if: matrix.node-version == 22
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: npm run smoke

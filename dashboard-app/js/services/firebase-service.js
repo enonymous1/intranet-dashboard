@@ -1,4 +1,6 @@
 import { Config } from '../config/config.js';
+import { firebaseModuleUrl } from '../config/versions.js';
+import { LAYOUT_SCHEMA_VERSION } from '../core/layout.js';
 
 /**
  * Firebase adapter, used only when a Firebase config is injected
@@ -29,9 +31,9 @@ export class FirebaseService {
             return false;
         }
         try {
-            const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
-            const { getAuth, signInAnonymously, signInWithCustomToken } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
-            const { getFirestore, doc, setDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+            const { initializeApp } = await import(firebaseModuleUrl('firebase-app.js'));
+            const { getAuth, signInAnonymously, signInWithCustomToken } = await import(firebaseModuleUrl('firebase-auth.js'));
+            const { getFirestore, doc, setDoc, getDoc } = await import(firebaseModuleUrl('firebase-firestore.js'));
 
             this.app = initializeApp(config);
             this.db = getFirestore(this.app);
@@ -91,7 +93,7 @@ export class FirebaseService {
             await this._fns.setDoc(this._docRef(), {
                 widgets,
                 lastModified: new Date().toISOString(),
-                version: '1.0',
+                version: LAYOUT_SCHEMA_VERSION,
             });
             return { success: true };
         } catch (error) {

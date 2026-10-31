@@ -1,5 +1,7 @@
 import { EventEmitter } from './core/event-emitter.js';
 import { Config } from './config/config.js';
+import { STORAGE_KEYS, EVENTS } from './core/constants.js';
+import { WidgetFactory } from './modules/widget-factory.js';
 import { FirebaseService } from './services/firebase-service.js';
 import { LocalLayoutStore, FirebaseLayoutStore } from './services/layout-store.js';
 import { AuthenticationModule } from './modules/auth-module.js';
@@ -19,30 +21,45 @@ import { ChartService } from './services/chart-service.js';
  * made its "local-only fallback" unreachable. Auth is awaited but also
  * non-fatal: no MSAL config simply means guest mode.
  */
+/**
+ * Main application. Constructor wires only — it performs no I/O, no DOM
+ * work, and no async work, so it can be constructed in a test with
+ * injected dependencies. Call start() to run startup; it returns a
+ * promise, so a caller (or a test) can await success or handle failure
+ * instead of the old constructor firing an unawaited async initialize().
+ */
 class DashboardApp {
-    constructor() {
-        this.eventEmitter = new EventEmitter();
+    /**
+     * @param {object} [deps] — injectable for tests; all optional.
+     * @param {EventEmitter} [deps.eventEmitter]
+     * @param {object} [deps.layoutStore] — skips the Firebase probe
+     * @param {object} [deps.firebaseService]
+     * @param {object} [deps.authModule] — still initialized via initialize()
+     */
+    constructor(deps = {}) {
+        this.eventEmitter = deps.eventEmitter ?? new EventEmitter();
         this.modules = {};
         this.isInitialized = false;
-        this.initialize();
+        this._overrides = deps;
     }
 
-    async initialize() {
-        try {
-            await this.initializeServices();
-            await this.initializeModules();
-            this.setupModuleCommunication();
-            this.setupUIEventHandlers();
-            this._applyStoredMode();
-            this.isInitialized = true;
-            this.eventEmitter.emit('appReady');
-        } catch (error) {
-            console.error('Failed to initialize application:', error);
-            this.handleInitializationError();
-        }
+    /** @returns {Promise<void>} Resolves when startup completes. */
+    async start() {
+        await this.initializeServices();
+        await this.initializeModules();
+        this.setupModuleCommunication();
+        this.setupUIEventHandlers();
+        this._applyStoredMode();
+        this.isInitialized = true;
+        this.eventEmitter.emit(EVENTS.appReady);
     }
 
     async initializeServices() {
+        if (this._overrides.layoutStore) {
+            this.modules.firebaseService = this._overrides.firebaseService ?? new FirebaseService();
+            this.modules.layoutStore = this._overrides.layoutStore;
+            return;
+        }
         const firebaseService = new FirebaseService();
         let layoutStore;
         if (Config.getFirebaseConfig()) {
@@ -63,7 +80,12 @@ class DashboardApp {
         this.modules.layoutStore = layoutStore;
     }
 
-    /** Identity for the local store: demo, MSAL account, else a stable guest id. */
+    /**
+     * Identity for the local store: demo, MSAL account, else a stable guest id.
+     * homeAccountId is preferred over username because it is stable when
+     * a user changes their username; using the username as the key would
+     * orphan the old layout on rename.
+     */
     _localUserKey() {
         const auth = this.modules.authModule;
         if (auth && typeof auth.isDemo === 'function' && auth.isDemo()) {
@@ -74,10 +96,10 @@ class DashboardApp {
             return `msal-${user.homeAccountId || user.username || 'user'}`;
         }
         try {
-            let id = localStorage.getItem('intranet-dashboard:local-user');
+            let id = localStorage.getItem(STORAGE_KEYS.localUser);
             if (!id) {
                 id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-                localStorage.setItem('intranet-dashboard:local-user', id);
+                localStorage.setItem(STORAGE_KEYS.localUser, id);
             }
             return id;
         } catch {
@@ -86,7 +108,8 @@ class DashboardApp {
     }
 
     async initializeModules() {
-        this.modules.authModule = new AuthenticationModule(this.eventEmitter);
+        this.modules.authModule = this._overrides.authModule
+            ?? new AuthenticationModule(this.eventEmitter);
         try {
             await this.modules.authModule.initialize();
         } catch (error) {
@@ -103,35 +126,24 @@ class DashboardApp {
     }
 
     setupModuleCommunication() {
-        // Theme changes recreate charts only. The original reloaded the
-        // whole dashboard here, discarding unsaved drags.
-        this.eventEmitter.on('recreateCharts', () => {
-            document.querySelectorAll('.grid-stack-item canvas').forEach((canvas) => {
-                const chartId = canvas.id;
-                if (!chartId) {
-                    return;
-                }
-                setTimeout(() => {
-                    if (chartId.startsWith('lineChart')) {
-                        ChartService.createLineChart(chartId);
-                    } else if (chartId.startsWith('pieChart')) {
-                        ChartService.createPieChart(chartId);
-                    } else {
-                        ChartService.createChart(chartId);
-                    }
-                }, 50);
-            });
+        // Theme changes recreate charts only, with their saved options
+        // (DashboardModule knows them; the old path recreated line/pie
+        // charts with no options, resetting them to defaults, and
+        // guessed the type from the canvas-id prefix). The original
+        // reloaded the whole dashboard here, discarding unsaved drags.
+        this.eventEmitter.on(EVENTS.recreateCharts, () => {
+            this.modules.dashboardModule.recreateCharts();
         });
-        this.eventEmitter.on('authError', ({ error, type }) => {
+        this.eventEmitter.on(EVENTS.authError, ({ error, type }) => {
             console.error(`Authentication error (${type}):`, error);
             const message = error && error.message ? error.message : 'Unknown error';
             this.showGlobalNotification(`Authentication error: ${message}`, 'error');
         });
-        this.eventEmitter.on('userLogin', (account) => {
+        this.eventEmitter.on(EVENTS.userLogin, (account) => {
             console.log('User logged in:', account.name || account.username);
             this._updateModeUI();
         });
-        this.eventEmitter.on('userLogout', () => {
+        this.eventEmitter.on(EVENTS.userLogout, () => {
             console.log('User logged out');
             this._updateModeUI();
         });
@@ -204,13 +216,7 @@ class DashboardApp {
             }
         }
 
-        document.querySelectorAll('.add-widget-btn').forEach((button) => {
-            button.addEventListener('click', (event) => {
-                event.preventDefault();
-                const widgetType = button.getAttribute('data-widget-type');
-                this.modules.dashboardModule.addWidget({ type: widgetType, w: 4, h: 2 });
-            });
-        });
+        this._renderWidgetMenu();
 
         // Delegated: widget remove buttons are created dynamically.
         document.addEventListener('click', (event) => {
@@ -237,17 +243,51 @@ class DashboardApp {
             }
         });
 
-        window.addEventListener('beforeunload', () => this.cleanup());
+        window.addEventListener('beforeunload', () => {
+            this.modules.dashboardModule?.flushAutoSave();
+            this.cleanup();
+        });
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && this.isInitialized) {
-                this.eventEmitter.emit('tabVisible');
+            if (document.hidden) {
+                // A drag followed by closing the tab within the 2 s
+                // autosave debounce used to be lost; flush it here.
+                this.modules.dashboardModule?.flushAutoSave();
+            } else if (this.isInitialized) {
+                this.eventEmitter.emit(EVENTS.tabVisible);
             }
+        });
+    }
+
+    /**
+     * Build the sidebar widget menu from the registry, instead of five
+     * hardcoded buttons in index.html. Adding a widget type is then a
+     * registry entry, not an HTML edit plus a JS edit.
+     */
+    _renderWidgetMenu() {
+        const menu = document.getElementById('widgetMenu');
+        if (!menu) {
+            return;
+        }
+        menu.innerHTML = '';
+        WidgetFactory.getAvailableWidgetTypes().forEach((widgetType) => {
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn add-widget-btn';
+            button.setAttribute('data-widget-type', widgetType.id);
+            button.textContent = widgetType.name;
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                this.modules.dashboardModule.addWidget({ type: widgetType.id, w: 4, h: 2 });
+            });
+            item.appendChild(button);
+            menu.appendChild(item);
         });
     }
 
     _getMode() {
         try {
-            return localStorage.getItem('intranet-dashboard:mode');
+            return localStorage.getItem(STORAGE_KEYS.mode);
         } catch {
             return null;
         }
@@ -255,7 +295,7 @@ class DashboardApp {
 
     _setMode(mode) {
         try {
-            localStorage.setItem('intranet-dashboard:mode', mode);
+            localStorage.setItem(STORAGE_KEYS.mode, mode);
         } catch {
             // Private mode etc.: choice simply is not remembered.
         }
@@ -343,14 +383,28 @@ class DashboardApp {
     }
 
     handleInitializationError() {
-        // Static message only — no error text is interpolated into HTML.
-        document.body.innerHTML = `
-            <div class="error-screen">
-                <h3>Application Error</h3>
-                <p>Failed to initialize the dashboard application. Please refresh the page and try again.</p>
-                <button type="button" onclick="location.reload()">Reload Page</button>
-            </div>
-        `;
+        // Overlay, not body.innerHTML: replacing the body destroyed any
+        // partially built DOM and made diagnostics impossible. This keeps
+        // the page intact underneath and uses textContent throughout.
+        if (typeof document === 'undefined') {
+            return;
+        }
+        if (document.getElementById('error-screen')) {
+            return;
+        }
+        const screen = document.createElement('div');
+        screen.id = 'error-screen';
+        screen.className = 'error-screen';
+        const heading = document.createElement('h3');
+        heading.textContent = 'Application Error';
+        const message = document.createElement('p');
+        message.textContent = 'Failed to initialize the dashboard application. Please refresh the page and try again.';
+        const reload = document.createElement('button');
+        reload.type = 'button';
+        reload.textContent = 'Reload Page';
+        reload.addEventListener('click', () => window.location.reload());
+        screen.append(heading, message, reload);
+        document.body.appendChild(screen);
     }
 
     getAppState() {
@@ -390,7 +444,12 @@ if (typeof document !== 'undefined') {
         window.addEventListener('unhandledrejection', (event) => {
             console.error('Unhandled promise rejection:', event.reason);
         });
-        window.dashboardApp = new DashboardApp();
+        const app = new DashboardApp();
+        window.dashboardApp = app;
+        app.start().catch((error) => {
+            console.error('Failed to initialize application:', error);
+            app.handleInitializationError();
+        });
     });
 }
 

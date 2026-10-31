@@ -37,3 +37,10 @@ test('non-array input parses to an empty layout', () => {
     assert.deepEqual(parseLayout(null), []);
     assert.deepEqual(parseLayout({ widgets: [] }), []);
 });
+
+test('versioned envelope parses, and legacy bare arrays still parse', () => {
+    const widget = { id: 'w-1', type: 'info', w: 4, h: 2, options: { title: 'Hi' } };
+    const normalized = { ...widget, x: 0, y: 0 };
+    assert.deepEqual(parseLayout({ version: 1, widgets: [widget] }), [normalized]);
+    assert.deepEqual(parseLayout([widget]), [normalized]);
+});

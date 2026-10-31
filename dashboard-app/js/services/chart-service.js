@@ -4,17 +4,22 @@
  * the app, and drops the Chart.helpers API the original called, which
  * Chart.js 4 no longer provides.
  */
+import { getChartColors } from '../core/theme-tokens.js';
+
 export class ChartService {
     static charts = new Map();
 
-    /** Colors that follow the body's dark-mode class (set by ThemeModule). */
+    /**
+     * Colors that follow the body's dark-mode class (set by ThemeModule).
+     * Same palette as ThemeModule.getChartColors (core/theme-tokens.js),
+     * reduced to the two values charts actually read.
+     */
     static themeColors() {
         const dark = typeof document !== 'undefined'
             && document.body
             && document.body.classList.contains('dark-mode');
-        return dark
-            ? { text: '#f8f9fa', grid: '#495057' }
-            : { text: '#212529', grid: '#e0e0e0' };
+        const colors = getChartColors(dark);
+        return { text: colors.text, grid: colors.grid };
     }
 
     static createChart(chartId, options = {}) {
@@ -63,6 +68,11 @@ export class ChartService {
             },
         };
         const config = this.mergeConfig(defaultConfig, options || {});
+        if (config.type === 'pie' || config.type === 'doughnut') {
+            // Pie charts have no axes; the bar defaults' scales would
+            // otherwise draw a spurious axis frame around the pie.
+            delete config.options.scales;
+        }
         try {
             const chart = new Chart(ctx, config);
             this.charts.set(chartId, chart);
@@ -75,6 +85,7 @@ export class ChartService {
 
     static createLineChart(chartId, data = {}) {
         const input = data && typeof data === 'object' ? data : {};
+        const colors = this.themeColors();
         const chartData = input.chartConfig?.data || input.data || {
             labels: ['January', 'February', 'March', 'April', 'May', 'June'],
             datasets: [{
@@ -92,7 +103,7 @@ export class ChartService {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    title: { display: true, text: input.title || 'Line Chart' },
+                    title: { display: true, text: input.title || 'Line Chart', color: colors.text },
                 },
             },
         });
@@ -100,6 +111,7 @@ export class ChartService {
 
     static createPieChart(chartId, data = {}) {
         const input = data && typeof data === 'object' ? data : {};
+        const colors = this.themeColors();
         const chartData = input.chartConfig?.data || input.data || {
             labels: ['Red', 'Blue', 'Yellow'],
             datasets: [{
@@ -114,7 +126,7 @@ export class ChartService {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    title: { display: true, text: input.title || 'Pie Chart' },
+                    title: { display: true, text: input.title || 'Pie Chart', color: colors.text },
                 },
             },
         });

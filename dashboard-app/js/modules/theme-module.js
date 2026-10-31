@@ -1,4 +1,7 @@
 import { ChartService } from '../services/chart-service.js';
+import { EVENTS } from '../core/constants.js';
+import { getChartColors } from '../core/theme-tokens.js';
+import { STORAGE_KEYS } from '../core/constants.js';
 
 /**
  * Dark/light theme. Vanilla DOM (no jQuery), preference in localStorage,
@@ -47,7 +50,7 @@ export class ThemeModule {
             mediaQuery.addListener(onChange);
         }
         window.addEventListener('storage', (event) => {
-            if (event.key === 'dashboard-theme') {
+            if (event.key === STORAGE_KEYS.theme) {
                 const newTheme = event.newValue;
                 if (newTheme && this.themes[newTheme] && newTheme !== this.currentTheme) {
                     this.setTheme(newTheme, false);
@@ -85,7 +88,7 @@ export class ThemeModule {
         // Note: themeChanged deliberately does NOT reload the dashboard
         // (the original did, discarding unsaved drags). It only recreates
         // charts, via updateChartsForTheme below.
-        this.eventEmitter.emit('themeChanged', {
+        this.eventEmitter.emit(EVENTS.themeChanged, {
             currentTheme: themeName,
             previousTheme,
             isDarkMode: themeName === 'dark',
@@ -111,29 +114,23 @@ export class ThemeModule {
     }
 
     updateChartsForTheme() {
+        // Destroy then recreate synchronously: ChartService.destroyAllCharts
+        // is synchronous, so the old 100 ms delay only added flicker. The
+        // dashboard recreates each chart with its saved options (see
+        // DashboardModule.recreateCharts) — the old path recreated line/pie
+        // charts with no options, silently resetting them to defaults.
         ChartService.destroyAllCharts();
-        setTimeout(() => {
-            this.eventEmitter.emit('recreateCharts');
-        }, 100);
+        this.eventEmitter.emit(EVENTS.recreateCharts);
     }
 
+    /** Chart colours for the current theme (see core/theme-tokens.js). */
     getChartColors() {
-        const isDark = this.currentTheme === 'dark';
-        return {
-            background: isDark ? '#454d55' : '#ffffff',
-            text: isDark ? '#ffffff' : '#333333',
-            grid: isDark ? '#6c757d' : '#e0e0e0',
-            primary: isDark ? '#007bff' : '#0056b3',
-            success: isDark ? '#28a745' : '#1e7e34',
-            warning: isDark ? '#ffc107' : '#d39e00',
-            danger: isDark ? '#dc3545' : '#bd2130',
-            info: isDark ? '#17a2b8' : '#138496',
-        };
+        return getChartColors(this.currentTheme === 'dark');
     }
 
     saveThemePreference(themeName) {
         try {
-            localStorage.setItem('dashboard-theme', themeName);
+            localStorage.setItem(STORAGE_KEYS.theme, themeName);
         } catch (error) {
             console.error('Failed to save theme preference:', error);
         }
@@ -141,7 +138,7 @@ export class ThemeModule {
 
     getSavedTheme() {
         try {
-            return localStorage.getItem('dashboard-theme');
+            return localStorage.getItem(STORAGE_KEYS.theme);
         } catch (error) {
             console.error('Failed to get saved theme:', error);
             return null;
@@ -206,7 +203,9 @@ export class ThemeModule {
     }
 
     destroy() {
-        // Listeners are on window/media-query objects; nothing to tear down
-        // for a single-page app that lives for the page lifetime.
+        // Listeners are on window/media-query objects. They are only
+        // removed if the module is recreated, which this single-page app
+        // never does; destroy() therefore intentionally does nothing
+        // rather than pretending to tear down listeners it does not hold.
     }
 }

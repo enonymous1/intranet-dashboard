@@ -1,4 +1,6 @@
 import { Config } from '../config/config.js';
+import { EVENTS } from '../core/constants.js';
+import { msalScriptUrl } from '../config/versions.js';
 
 /**
  * Microsoft (MSAL) authentication, optional.
@@ -54,7 +56,7 @@ export class AuthenticationModule {
             return true;
         } catch (error) {
             console.error('Failed to initialize MSAL:', error);
-            this.eventEmitter.emit('authError', { error, type: 'initialization' });
+            this.eventEmitter.emit(EVENTS.authError, { error, type: 'initialization' });
             this.updateUIForGuest();
             return false;
         }
@@ -67,7 +69,7 @@ export class AuthenticationModule {
                 return;
             }
             const script = document.createElement('script');
-            script.src = 'https://alcdn.msauth.net/browser/2.14.2/js/msal-browser.min.js';
+            script.src = msalScriptUrl();
             script.integrity = 'sha384-ggh+EF1aSqm+Y4yvv2n17KpurNcZTeYtUZUvhPziElsstmIEubyEB6AIVpKLuZgr';
             script.crossOrigin = 'anonymous';
             script.onload = () => resolve();
@@ -85,7 +87,7 @@ export class AuthenticationModule {
             await this.msalInstance.loginRedirect({ scopes: ['User.Read'], prompt: 'select_account' });
         } catch (error) {
             console.error('Login error:', error);
-            this.eventEmitter.emit('authError', { error, type: 'login' });
+            this.eventEmitter.emit(EVENTS.authError, { error, type: 'login' });
         }
     }
 
@@ -97,14 +99,17 @@ export class AuthenticationModule {
         try {
             const accounts = this.msalInstance.getAllAccounts();
             const account = accounts.length > 0 ? accounts[0] : null;
-            this.updateUIForGuest();
+            // UI updates only after a successful redirect: updating
+            // first would claim logged-out while the session survives
+            // if the redirect fails.
             await this.msalInstance.logoutRedirect({
                 account,
                 postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : undefined,
             });
+            this.updateUIForGuest();
         } catch (error) {
             console.error('Logout error:', error);
-            this.eventEmitter.emit('authError', { error, type: 'logout' });
+            this.eventEmitter.emit(EVENTS.authError, { error, type: 'logout' });
         }
     }
 
@@ -151,7 +156,7 @@ export class AuthenticationModule {
             if (loginBtn) loginBtn.hidden = this._isDemo ? !this.isConfigured : true;
             if (logoutBtn) logoutBtn.hidden = this._isDemo ? true : false;
         }
-        this.eventEmitter.emit('userLogin', account);
+        this.eventEmitter.emit(EVENTS.userLogin, account);
     }
 
     updateUIForGuest() {
@@ -165,7 +170,7 @@ export class AuthenticationModule {
             if (loginBtn) loginBtn.hidden = !this.isConfigured;
             if (logoutBtn) logoutBtn.hidden = true;
         }
-        this.eventEmitter.emit('userLogout');
+        this.eventEmitter.emit(EVENTS.userLogout);
     }
 
     getCurrentUser() {
@@ -176,6 +181,14 @@ export class AuthenticationModule {
         return this.currentUser !== null;
     }
 
+    /**
+     * Silent token acquisition only. The old fallback to
+     * acquireTokenRedirect claimed to return a token, but a redirect
+     * navigates away from the page, so that return value was never
+     * observable — callers must treat a null here as "interactive
+     * sign-in required", not as a failed token fetch. There are
+     * currently no callers: no Graph data is fetched by this app.
+     */
     async getAccessToken(scopes = ['User.Read']) {
         if (!this.isInitialized || !this.currentUser) {
             return null;
@@ -187,17 +200,8 @@ export class AuthenticationModule {
             });
             return response.accessToken;
         } catch (error) {
-            console.error('Error acquiring token:', error);
-            try {
-                const response = await this.msalInstance.acquireTokenRedirect({
-                    scopes,
-                    account: this.currentUser,
-                });
-                return response.accessToken;
-            } catch (redirectError) {
-                console.error('Error acquiring token via redirect:', redirectError);
-                return null;
-            }
+            console.error('Error acquiring token (interactive sign-in required):', error);
+            return null;
         }
     }
 

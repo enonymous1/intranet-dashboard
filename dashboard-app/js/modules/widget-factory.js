@@ -1,6 +1,7 @@
 import { ChartService } from '../services/chart-service.js';
 import { escapeHtml, sanitizeIconClass } from '../core/escape.js';
-import { createWidgetId, WIDGET_TYPES } from '../core/layout.js';
+import { createWidgetId } from '../core/layout.js';
+import { WIDGET_REGISTRY, getWidgetTypeList } from '../core/widgets.js';
 
 /**
  * Factory for dashboard widgets. Every user-controlled string (title,
@@ -13,27 +14,32 @@ import { createWidgetId, WIDGET_TYPES } from '../core/layout.js';
  * load round-trip the same widget instead of minting a new one.
  */
 export class WidgetFactory {
-    static widgetTypes = {
-        welcome: 'welcome',
-        info: 'info',
-        chart: 'chart',
-        lineChart: 'lineChart',
-        pieChart: 'pieChart',
-    };
-
+    /**
+     * Build one widget's HTML. Charts are NOT created here: the returned
+     * HTML contains only the <canvas>, and DashboardModule mounts the
+     * chart synchronously once the element is in the DOM. (The old code
+     * scheduled chart creation on a 100 ms timeout from here, which
+     * could fire after the widget had been removed.)
+     * @param {string} widgetType — a WIDGET_REGISTRY key
+     * @param {object|null} currentUser
+     * @param {object} [options]
+     * @param {string|null} [widgetId] — preserved on reload so save/load
+     *   round-trips identity; generated when omitted
+     * @returns {string} widget HTML (all user strings escaped)
+     */
     static createWidget(widgetType, currentUser, options = {}, widgetId = null) {
         const id = typeof widgetId === 'string' && widgetId ? widgetId : createWidgetId();
         const opts = options && typeof options === 'object' ? options : {};
         switch (widgetType) {
-            case this.widgetTypes.welcome:
+            case 'welcome':
                 return this.createWelcomeWidget(currentUser, opts, id);
-            case this.widgetTypes.info:
+            case 'info':
                 return this.createInfoWidget(opts, id);
-            case this.widgetTypes.chart:
+            case 'chart':
                 return this.createChartWidget(opts, id);
-            case this.widgetTypes.lineChart:
+            case 'lineChart':
                 return this.createLineChartWidget(opts, id);
-            case this.widgetTypes.pieChart:
+            case 'pieChart':
                 return this.createPieChartWidget(opts, id);
             default:
                 return this.createUnknownWidget(widgetType, id);
@@ -70,18 +76,17 @@ export class WidgetFactory {
         `;
     }
 
-    static createChartWidget(options, widgetId) {
-        const chartId = `chart-${widgetId}`;
-        const title = escapeHtml(options.title || 'Chart');
-        setTimeout(() => {
-            try {
-                ChartService.createChart(chartId, options.chartConfig);
-            } catch (error) {
-                console.error('Error creating chart widget:', error);
-            }
-        }, 100);
+    /**
+     * One chart card for all three chart types. They used to be three
+     * near-identical methods differing only in canvas prefix and default
+     * title; the prefix is now taken from the registry entry.
+     */
+    static createChartCard(widgetType, options, widgetId) {
+        const entry = WIDGET_REGISTRY[widgetType];
+        const chartId = `${entry.chartPrefix}-${widgetId}`;
+        const title = escapeHtml(options.title || entry.name);
         return `
-            <div class="card" data-widget-id="${escapeHtml(widgetId)}" data-widget-type="chart">
+            <div class="card" data-widget-id="${escapeHtml(widgetId)}" data-widget-type="${widgetType}">
                 <div class="card-header">
                     <h5 class="card-title mb-0">${title}</h5>
                 </div>
@@ -90,50 +95,18 @@ export class WidgetFactory {
                 </div>
             </div>
         `;
+    }
+
+    static createChartWidget(options, widgetId) {
+        return this.createChartCard('chart', options, widgetId);
     }
 
     static createLineChartWidget(options, widgetId) {
-        const chartId = `lineChart-${widgetId}`;
-        const title = escapeHtml(options.title || 'Line Chart');
-        setTimeout(() => {
-            try {
-                ChartService.createLineChart(chartId, options);
-            } catch (error) {
-                console.error('Error creating line chart widget:', error);
-            }
-        }, 100);
-        return `
-            <div class="card" data-widget-id="${escapeHtml(widgetId)}" data-widget-type="lineChart">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">${title}</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="${escapeHtml(chartId)}"></canvas>
-                </div>
-            </div>
-        `;
+        return this.createChartCard('lineChart', options, widgetId);
     }
 
     static createPieChartWidget(options, widgetId) {
-        const chartId = `pieChart-${widgetId}`;
-        const title = escapeHtml(options.title || 'Pie Chart');
-        setTimeout(() => {
-            try {
-                ChartService.createPieChart(chartId, options);
-            } catch (error) {
-                console.error('Error creating pie chart widget:', error);
-            }
-        }, 100);
-        return `
-            <div class="card" data-widget-id="${escapeHtml(widgetId)}" data-widget-type="pieChart">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">${title}</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="${escapeHtml(chartId)}"></canvas>
-                </div>
-            </div>
-        `;
+        return this.createChartCard('pieChart', options, widgetId);
     }
 
     static createUnknownWidget(widgetType, widgetId) {
@@ -148,42 +121,23 @@ export class WidgetFactory {
         `;
     }
 
-    /** Read a widget type back out of a rendered grid item (vanilla DOM). */
-    static extractWidgetType(element) {
-        if (!element || typeof element.querySelector !== 'function') {
-            return 'info';
-        }
-        const typed = element.querySelector('[data-widget-type]');
-        if (typed) {
-            return typed.getAttribute('data-widget-type');
-        }
-        if (element.querySelector('.card-body h3')) return 'welcome';
-        const canvas = element.querySelector('canvas');
-        if (canvas) {
-            const canvasId = canvas.getAttribute('id') || '';
-            if (canvasId.includes('lineChart')) return 'lineChart';
-            if (canvasId.includes('pieChart')) return 'pieChart';
-            return 'chart';
-        }
-        return 'info';
-    }
-
+    /** Sidebar / picker entries, driven by the registry (see core/widgets.js). */
     static getAvailableWidgetTypes() {
-        return [
-            { id: 'welcome', name: 'Welcome', description: 'Personal welcome message' },
-            { id: 'info', name: 'Info Box', description: 'Information display widget' },
-            { id: 'chart', name: 'Bar Chart', description: 'Bar chart visualization' },
-            { id: 'lineChart', name: 'Line Chart', description: 'Line chart visualization' },
-            { id: 'pieChart', name: 'Pie Chart', description: 'Pie chart visualization' },
-        ];
+        return getWidgetTypeList();
     }
 
+    /**
+     * Strict validation for *user-supplied* configs (sidebar adds). Unlike
+     * normalizeWidget, which clamps out-of-range geometry for saved
+     * layouts, this rejects it — a caller should hear that its geometry
+     * was wrong, not silently get a different size.
+     */
     static validateWidgetConfig(config) {
         const errors = [];
         if (!config || typeof config !== 'object') {
             return { isValid: false, errors: ['Widget configuration is required'] };
         }
-        if (!config.type || !WIDGET_TYPES.includes(config.type)) {
+        if (!config.type || !Object.hasOwn(WIDGET_REGISTRY, config.type)) {
             errors.push('Valid widget type is required');
         }
         if (typeof config.w !== 'number' || config.w < 1 || config.w > 12) {

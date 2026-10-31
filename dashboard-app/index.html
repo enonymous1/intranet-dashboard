@@ -27,13 +27,10 @@
     <aside class="sidebar">
         <nav aria-label="Widgets">
             <h2>Widgets</h2>
-            <ul class="widget-menu">
-                <li><button type="button" class="btn add-widget-btn" data-widget-type="welcome">Welcome</button></li>
-                <li><button type="button" class="btn add-widget-btn" data-widget-type="info">Info Box</button></li>
-                <li><button type="button" class="btn add-widget-btn" data-widget-type="chart">Bar Chart</button></li>
-                <li><button type="button" class="btn add-widget-btn" data-widget-type="lineChart">Line Chart</button></li>
-                <li><button type="button" class="btn add-widget-btn" data-widget-type="pieChart">Pie Chart</button></li>
-            </ul>
+            <!-- Widget buttons are generated from the registry by
+                 DashboardApp._renderWidgetMenu(), so adding a widget type
+                 does not require editing this file. -->
+            <ul class="widget-menu" id="widgetMenu"></ul>
             <h2>Layout</h2>
             <ul class="widget-menu">
                 <li><button type="button" class="btn btn-primary" id="saveLayoutBtn">Save Layout</button></li>

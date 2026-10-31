@@ -28,6 +28,15 @@ jobs:
           node-version: 22
       - name: Syntax-check and test before publishing
         run: npm run check && npm test
+      # Gate the publish on the browser smoke test, not just unit tests:
+      # a broken layout must never reach Pages again (v1.1.0 did).
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: Browser smoke test (GridStack layout + fallback layout)
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: npm run smoke
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload dashboard

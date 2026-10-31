@@ -32,6 +32,13 @@ body.dark-mode {
 
 * { box-sizing: border-box; }
 
+/* Visible keyboard focus: the custom button styles otherwise leave
+ * keyboard users on the browser default, inconsistently. */
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 body {
     margin: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -246,6 +253,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 .grid-stack-item:focus-within .remove-widget-btn { opacity: 1; }
 
 /* Notifications */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 300px;
+}
+
 .alert {
     padding: 0.75rem 1rem;
     border: 1px solid var(--widget-border);
@@ -272,8 +287,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
     cursor: pointer;
 }
 
-/* Full-page error screen (used only if startup itself fails) */
+/* Full-page error screen (used only if startup itself fails).
+ * Rendered as an overlay by app.js, not by replacing document.body,
+ * so partially built DOM survives underneath for diagnostics. */
 .error-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background-color: var(--content-bg);
     min-height: 100vh;
     display: flex;
     flex-direction: column;

@@ -8,7 +8,9 @@
  * dependency, so they are covered by node:test.
  */
 
-export const WIDGET_TYPES = ['welcome', 'info', 'chart', 'lineChart', 'pieChart'];
+import { WIDGET_TYPES } from './widgets.js';
+
+export { WIDGET_TYPES };
 
 export function createWidgetId() {
     return `widget-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -28,6 +30,15 @@ function clampInt(value, fallback, min, max) {
  * Normalize one widget object, or return null if it is unusable.
  * Geometry is clamped (width 1-12, height >= 1, positions >= 0) rather
  * than rejected, so one bad saved widget cannot break a whole layout.
+ * This is the repair path for *saved* layouts. User-supplied configs
+ * go through WidgetFactory.validateWidgetConfig first, which rejects
+ * out-of-range geometry instead of clamping it — the two functions
+ * deliberately disagree, for different inputs.
+ * @param {object} widget — raw widget, e.g. from a saved layout
+ * @param {number} [fallbackIndex=0] — used as `y` when the widget has
+ *   no position: unpositioned widgets then stack down the page in
+ *   load order instead of all overlapping at (0, 0).
+ * @returns {object|null} normalized widget, or null if the type is unknown
  */
 export function normalizeWidget(widget, fallbackIndex = 0) {
     if (!widget || typeof widget !== 'object' || Array.isArray(widget)) {
@@ -49,7 +60,10 @@ export function normalizeWidget(widget, fallbackIndex = 0) {
     };
 }
 
-/** Serialize widgets for storage, dropping anything unusable. */
+/** Serialize widgets for storage, dropping anything unusable.
+ * @param {Array<object>} widgets
+ * @returns {Array<object>} normalized widgets, safe to render and save
+ */
 export function serializeLayout(widgets) {
     if (!Array.isArray(widgets)) {
         return [];
@@ -59,7 +73,30 @@ export function serializeLayout(widgets) {
         .filter((widget) => widget !== null);
 }
 
-/** Parse a stored layout; anything malformed becomes an empty layout. */
+/** Schema version for the saved-layout envelope (see serializeLayoutEnvelope). */
+export const LAYOUT_SCHEMA_VERSION = 1;
+
+/**
+ * Serialize widgets as a versioned envelope. Stores save the envelope,
+ * not the bare array, so a future format change can migrate instead of
+ * breaking every existing saved layout.
+ * @param {Array<object>} widgets
+ * @returns {{version: number, widgets: Array<object>}}
+ */
+export function serializeLayoutEnvelope(widgets) {
+    return { version: LAYOUT_SCHEMA_VERSION, widgets: serializeLayout(widgets) };
+}
+
+/**
+ * Parse a stored layout; anything malformed becomes an empty layout.
+ * Accepts both the v1.2 envelope ({ version, widgets }) and the bare
+ * array saved by v1.0/v1.1, so old layouts migrate on load.
+ * @param {*} data — parsed JSON from a store
+ * @returns {Array<object>} normalized widgets
+ */
 export function parseLayout(data) {
+    if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.widgets)) {
+        return serializeLayout(data.widgets);
+    }
     return serializeLayout(data);
 }
